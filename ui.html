@@ -5,263 +5,368 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Variant Layer Selector</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+    
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       margin: 0;
       padding: 0;
       font-size: 12px;
-      color: #333;
+      color: #0f172a;
+      background: #f8fafc;
+      line-height: 1.5;
       height: 100vh;
       display: flex;
       flex-direction: column;
-      overflow: hidden; /* Hide main scrollbar */
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
-    #container {
-      padding-bottom: 60px; /* Space for the footer */
-      flex-grow: 1;
-      overflow-y: auto;
-    }
-    .info-text {
-      color: #777;
-      padding: 8px 16px; /* Adjusted padding */
-    }
-
-    /* --- ACCORDION STYLES --- */
-    .property-group {
-      border-bottom: 1px solid #e0e0e0;
+    /* --- TOPBAR --- */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      color: #f1f5f9;
+      border-bottom: 1px solid #0b1220;
+      flex-shrink: 0;
+      z-index: 10;
     }
     
-    .property-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 16px; 
-      background: #f5f5f5;
-      cursor: pointer;
-      user-select: none;
-    }
-    .property-header:hover {
-      background: #eee;
-    }
-    .property-title {
+    #topbar-title {
       font-size: 11px;
-      font-weight: 600;
-      color: #333;
-    }
-    .icon {
-      font-size: 16px;
-      font-weight: bold;
-      color: #888;
-      transition: transform 0.15s ease;
-      transform: rotate(0deg); 
-    }
-    .icon::before {
-      content: '›';
+      letter-spacing: 0.02em;
+      opacity: 0.95;
     }
     
-    .property-content {
-      background: #fff;
-      border-top: 1px solid #e0e0e0;
-      position: relative;
-      margin-left: 0;
-      padding-left: 0;
-      padding: 16px 16px 16px 0;
-    }
-    .property-group.collapsed .property-content {
+    #back-btn {
+      appearance: none;
+      border: none;
+      background: rgba(241, 245, 249, 0.1);
+      color: #f1f5f9;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      cursor: pointer;
       display: none;
+      transition: background 0.15s ease;
     }
-    .property-group:not(.collapsed) .icon {
-      transform: rotate(90deg);
+    
+    #back-btn:hover {
+      background: rgba(241, 245, 249, 0.15);
     }
 
-    /* --- 'option-group' --- */
-    .option-group {
-      border: 1px solid #e0e0e0;
+    /* --- MAIN CONTAINER --- */
+    #container {
+      padding: 16px;
+      flex-grow: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    /* Custom scrollbar */
+    #container::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    #container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    #container::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
       border-radius: 4px;
-      overflow: visible; 
-      margin-bottom: 8px;
-      position: relative;
-      margin-left: 32px;
-    }
-    .option-group:last-child {
-      margin-bottom: 0;
     }
     
-    /* Vertical line for .option-group */
-    .option-group::before {
-      content: '';
-      position: absolute;
-      background: #e0e0e0;
-      width: 1px;
-      left: -12px; /* Positions line in the margin */
-      transform: translateX(-0.5px);
-      top: -17px;
-      height: calc(100% + 17px);
+    #container::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    .info-text {
+      color: #64748b;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      font-size: 11px;
+    }
+
+    /* --- CARD COMPONENTS --- */
+    .card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
     }
     
-    /* Stop line for the last option */
-    .property-content > .option-group:last-child::before {
-      height: 32px; /* (17px + 15px) */
+    .card-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid #e2e8f0;
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+    
+    .card-title {
+      margin: 0;
+      font-size: 12px;
+      color: #0f172a;
+      letter-spacing: 0.01em;
+    }
+    
+    .card-content {
+      padding: 12px 14px;
+      display: grid;
+      gap: 12px;
     }
 
-
-    /* .option-title (Box Header) */
-    .option-title {
-      font-weight: 600;
-      padding: 8px 12px; 
-      background: #f5f5ff;
-      border-bottom: 1px solid #e0e0e0; /* Separator */
+    /* --- HOME LIST --- */
+    .home-list {
+      display: grid;
+      gap: 10px;
+    }
+    
+    .home-item {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #ffffff;
       display: flex;
       align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    
+    .home-item:hover {
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+      border-color: #cbd5e1;
+    }
+    
+    .home-item:active {
+      transform: translateY(1px);
+    }
+    
+    .home-item-title {
+      font-size: 12px;
+      color: #0f172a;
+    }
+    
+    .home-item .chevron {
+      width: 16px;
+      height: 16px;
+      color: #94a3b8;
+    }
+
+    /* --- OPTION GROUP --- */
+    .option-group {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #f8fafc;
+      overflow: hidden;
+      transition: all 0.15s ease;
+    }
+    
+    .option-group:hover {
+      border-color: #c7d2fe;
+      box-shadow: 0 1px 3px rgba(99, 102, 241, 0.12);
+    }
+    
+    .option-title {
+      padding: 10px 12px;
+      background: rgba(99, 102, 241, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 8px;
       cursor: pointer;
       user-select: none;
-      position: relative; 
+      transition: background 0.15s ease;
     }
+    
     .option-title:hover {
-      background: #eef;
-    }
-    .option-title input {
-      margin-right: 8px;
+      background: rgba(99, 102, 241, 0.12);
     }
     
-    /* Horizontal line for .option-title */
-    .option-title::before {
-      content: '';
-      position: absolute;
-      left: -12px; 
-      top: 15px; 
-      width: 12px;
-      height: 1px;
-      background: #e0e0e0;
-      transform: translateY(-0.5px);
-    }
-    
-    
-    /* .layers-list (Box Content) */
-    .layers-list {
-      position: relative;
-      margin-left: 20px; 
-      padding-left: 12px; 
-      padding-bottom: 0;
-      padding-top: 4px;
-      padding-bottom: 4px;
+    .option-title label {
+      color: #312e81;
+      font-size: 11px;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      flex: 1;
     }
 
-    /* nested .layers-list */
-    .layer-item > .layers-list {
-      margin-left: 9px;
-      padding-top: 0;
-      padding-bottom: 0;
+    .option-group > .layers-list {
+      padding: 8px 10px 10px 14px;
     }
-    
-    .layers-list::before {
+
+    .option-group > .layers-list.layers-list--root {
+      padding-left: 10px;
+    }
+
+    /* Checkbox styling */
+    input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: #6366f1;
+      cursor: pointer;
+      margin: 0;
+      flex-shrink: 0;
+    }
+
+    /* --- LAYER TREE --- */
+    .layers-list {
+      margin: 0;
+      padding: 4px 0 4px 16px;
+      display: grid;
+      gap: 2px;
+    }
+
+    .layers-list.layers-list--root {
+      padding-left: 0;
+    }
+
+    .layer-item {
+      margin: 0;
+      padding: 0;
+    }
+
+    .layer-item--collapsed > .layers-list {
       display: none;
     }
-    
-    /* .layer-item (Tree item) */
-    .layer-item {
-      position: relative;
-    }
 
-    .layer-item::before {
-      content: '';
-      position: absolute;
-      background: #e0e0e0;
-      width: 1px;
-      left: -12px;
-      top: 0;
-      height: 100%;
-      transform: translateX(-0.5px);
-    }
-
-    .layer-item:last-child::before {
-      height: 13px;
-    }
-    
     .layer-item-header {
       display: flex;
       align-items: center;
-      padding: 6px 12px 6px 0; 
-      position: relative;
+      gap: 6px;
+      padding: 5px 8px;
       cursor: pointer;
       user-select: none;
+      border-radius: 6px;
+      transition: all 0.15s ease;
     }
+
     .layer-item-header:hover {
-      background: #f9f9f9;
+      background: #eef2ff;
     }
-    
-    .layer-item-header::before {
-      content: '';
-      position: absolute;
-      left: -12px;
-      top: 13px;
+
+    .layer-toggle,
+    .layer-toggle-placeholder {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .layer-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: none;
+      background: none;
+      color: #6366f1;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .layer-toggle:hover {
+      background: rgba(99, 102, 241, 0.12);
+    }
+
+    .layer-toggle svg {
       width: 12px;
-      height: 1px;
-      background: #e0e0e0;
-      transform: translateY(-0.5px);
+      height: 12px;
+      transition: transform 0.15s ease;
     }
-    
-    .layer-item input {
-      margin-right: 8px;
+
+    .layer-item--parent:not(.layer-item--collapsed) > .layer-item-header .layer-toggle svg {
+      transform: rotate(90deg);
     }
+
+    .layer-toggle-placeholder {
+      display: inline-block;
+    }
+
     .layer-item label {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       flex-grow: 1;
-      pointer-events: none;
       line-height: 14px;
+      font-size: 11px;
+      color: #1e293b;
+      cursor: pointer;
     }
 
-    /* --- FOOTER STYLES --- */
+    /* --- FOOTER --- */
     #footer {
-      position: fixed;
+      position: sticky;
       bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 16px;
-      background: #ffffff;
-      border-top: 1px solid #e0e0e0;
+      padding: 14px 16px;
+      background: rgba(248, 250, 252, 0.9);
+      border-top: 1px solid #e2e8f0;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      box-sizing: border-box; 
+      backdrop-filter: blur(8px);
+      flex-shrink: 0;
     }
-    
+
     #selection-count {
       font-size: 11px;
-      color: #777;
+      color: #64748b;
       white-space: nowrap;
     }
-    
-    button {
-      background-color: #0d99ff;
+
+    button#select-button {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
       color: white;
       border: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 6px;
       cursor: pointer;
-      font-family: 'Inter', sans-serif;
+      font-family: inherit;
+      font-size: 11px;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+      transition: all 0.15s ease;
     }
-    button:hover {
-      background-color: #0b7fdd;
+
+    button#select-button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
     }
-    
-    button:disabled {
-      background-color: #e0e0e0;
-      color: #a0a0a0;
+
+    button#select-button:disabled {
+      background: #e2e8f0;
+      color: #94a3b8;
       cursor: not-allowed;
-      opacity: 0.7;
+      box-shadow: none;
+      transform: none;
     }
-    button:disabled:hover {
-      background-color: #e0e0e0;
+
+    /* Resizer handles removed for smooth scrolling */
+
+    /* SVG Icons */
+    .chevron {
+      display: inline-block;
+      vertical-align: middle;
     }
-    
   </style>
 </head>
 <body>
+
+  <div id="topbar">
+    <button id="back-btn">← Back</button>
+    <span id="topbar-title">Variant Layer Selector</span>
+  </div>
 
   <div id="container">
     <p class="info-text">Please select a component, variant, or instance on the canvas.</p>
@@ -272,10 +377,25 @@
     <button id="select-button" disabled>Select Layers</button>
   </div>
 
+  
+
   <script>
     const container = document.getElementById('container');
-    
-    /* --- MODIFIED: updateGlobalCount logic --- */
+    const topbarTitle = document.getElementById('topbar-title');
+    const backBtn = document.getElementById('back-btn');
+
+    const appState = {
+      page: 'home',
+      groups: [],
+      currentProperty: null,
+      titleBase: 'Selection',
+    };
+
+    // Chevron SVG icon
+    const chevronSVG = `<svg class="chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+
     function updateGlobalCount() {
       const count = document.querySelectorAll('.layer-checkbox:checked').length;
       const countEl = document.getElementById('selection-count');
@@ -285,18 +405,43 @@
       
       if (count === 0) {
         countEl.textContent = 'No layer selected';
-        button.textContent = 'Select Layers'; // Button text when 0
+        button.textContent = 'Select Layers';
       } else if (count === 1) {
         countEl.textContent = '1 layer selected';
-        button.textContent = 'Select Layer'; // Button text when 1 (singular)
+        button.textContent = 'Select Layer';
       } else {
         countEl.textContent = `${count} layers selected`;
-        button.textContent = 'Select Layers'; // Button text when 2+ (plural)
+        button.textContent = 'Select Layers';
       }
       
       button.disabled = (count === 0);
     }
-    
+
+    function setPage(page, title) {
+      appState.page = page;
+      topbarTitle.textContent = title || 'Variant Layer Selector';
+      backBtn.style.display = page === 'home' ? 'none' : 'inline-block';
+    }
+
+    function renderHome(properties) {
+      setPage('home', 'Variant Layer Selector');
+      const labels = properties && properties.length
+        ? properties
+        : [];
+
+      if (labels.length === 0) {
+        container.innerHTML = '<p class="info-text">Please select a component, variant, or instance on the canvas.</p>';
+        return;
+      }
+
+      container.innerHTML = `<div class="home-list">${labels.map(l => `
+        <div class="home-item" data-prop="${l}">
+          <span class="home-item-title">${l}</span>
+          ${chevronSVG}
+        </div>
+      `).join('')}</div>`;
+    }
+
     function updateParentCheckboxState(childCheckbox) {
       const optionGroup = childCheckbox.closest('.option-group');
       if (!optionGroup) return;
@@ -366,27 +511,37 @@
 
       return tree;
     }
-    
-    function buildLayerHtml(layers, propertyName, optionValue) {
+
+    function buildLayerHtml(layers, propertyName, optionValue, depth = 0) {
       if (!layers || layers.length === 0) return '';
       
-      let html = `<div class="layers-list">`;
+      let html = `<div class="layers-list${depth === 0 ? ' layers-list--root' : ''}">`;
       
       layers.forEach((layer) => {
         const nodeIdsValue = JSON.stringify(layer.nodeIds);
         const uniqueId = `cb-${propertyName}-${optionValue}-${layer.path.replace(/[^a-zA-Z0-9]/g, '-')}`;
         const displayName = layer.name.split('/').pop();
+        const hasChildren = layer.children && layer.children.length > 0;
+        const itemClass = ['layer-item', hasChildren ? 'layer-item--parent' : 'layer-item--leaf'].join(' ');
+        const toggleMarkup = hasChildren
+          ? `<button type="button" class="layer-toggle" aria-expanded="true">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 3L7 6L4 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>`
+          : `<span class="layer-toggle-placeholder"></span>`;
 
         html += `
-          <div class="layer-item">
+          <div class="${itemClass}">
             <div class="layer-item-header">
+              ${toggleMarkup}
               <input type="checkbox" class="layer-checkbox" value='${nodeIdsValue}' id="${uniqueId}">
               <label for="${uniqueId}" title="${layer.name}">${displayName}</label>
             </div>
         `;
         
-        if (layer.children && layer.children.length > 0) {
-          html += buildLayerHtml(layer.children, propertyName, optionValue);
+        if (hasChildren) {
+          html += buildLayerHtml(layer.children, propertyName, optionValue, depth + 1);
         }
         
         html += `</div>`;
@@ -399,60 +554,59 @@
     window.onmessage = event => {
       const msg = event.data.pluginMessage;
 
+      if (msg.type === 'load-node-layers') {
+        appState.currentProperty = null;
+        container.innerHTML = '';
+
+        const titleBase = (msg.data?.containerName && msg.data.containerName.trim() !== '')
+          ? msg.data.containerName.trim()
+          : (msg.data?.containerType || 'Selection');
+        const layers = msg.data?.layers || [];
+        appState.titleBase = titleBase;
+
+        if (layers.length === 0) {
+          container.innerHTML = `<p class="info-text">${titleBase} has no layers to display.</p>`;
+          updateGlobalCount();
+          return;
+        }
+
+        const layerTree = buildTree(layers);
+        const html = `
+          <div class="card">
+            <div class="card-header"><h3 class="card-title">Layers in ${titleBase}</h3></div>
+            <div class="card-content">
+              <div class="option-group">
+                <div class="option-title">
+                  <input type="checkbox" class="option-checkbox-all">
+                  <label>All layers</label>
+                </div>
+                ${buildLayerHtml(layerTree, 'layers', 'all')}
+              </div>
+            </div>
+          </div>`;
+
+        container.innerHTML = html;
+        setPage('single', `Layers in ${titleBase}`);
+
+        updateGlobalCount();
+        return;
+      }
+
       if (msg.type === 'load-groups') {
         container.innerHTML = '';
         
         if (msg.data.length === 0) {
-           container.innerHTML = `<p class="info-text">No variant properties found on this component set.</p>`;
+           container.innerHTML = `<p class="info-text">No layers found for this selection.</p>`;
            updateGlobalCount();
            return;
         }
-
-        msg.data.forEach(property => {
-          let propertyHtml = `
-            <div class="property-group collapsed">
-              <div class="property-header">
-                <span class="property-title">${property.propertyName}</span>
-                <span class="icon"></span>
-              </div>
-              <div class="property-content">
-          `;
-
-          property.options.forEach(option => {
-            propertyHtml += `
-              <div class="option-group">
-                <div class="option-title">
-                  <input type="checkbox" class="option-checkbox-all">
-                  <label>${option.value}</label>
-                </div>
-            `;
-            
-            const layerTree = buildTree(option.uniqueLayers);
-            
-            propertyHtml += buildLayerHtml(layerTree, property.propertyName, option.value);
-
-            propertyHtml += `</div>`;
-          });
-
-          propertyHtml += `
-              </div> 
-            </div>
-          `;
-          
-          container.innerHTML += propertyHtml;
-        });
-
-        // Open the first accordion by default
-        const firstGroup = container.querySelector('.property-group');
-        if (firstGroup) {
-          firstGroup.classList.remove('collapsed');
-        }
-
+        appState.groups = msg.data;
+        renderHome(appState.groups.map(g => g.propertyName));
         updateGlobalCount();
       }
 
       if (msg.type === 'no-selection') {
-        container.innerHTML = `<p class="info-text">${msg.message || 'Please select a component, variant, or instance.'}</p>`;
+        container.innerHTML = `<p class="info-text">${msg.message || 'Please select a component, component set, frame, group, or section.'}</p>`;
         updateGlobalCount();
       }
     };
@@ -475,7 +629,6 @@
     };
 
     document.addEventListener('change', event => {
-      
       if (event.target.classList.contains('option-checkbox-all')) {
         const isChecked = event.target.checked;
         event.target.indeterminate = false; 
@@ -497,23 +650,44 @@
     });
 
     container.addEventListener('click', event => {
-      
-      const header = event.target.closest('.property-header');
-      if (header) {
-        const clickedGroup = header.closest('.property-group');
-        if (!clickedGroup) return;
+      const homeItem = event.target.closest('.home-item');
+      if (homeItem) {
+        const prop = homeItem.getAttribute('data-prop');
+        const group = appState.groups.find(g => g.propertyName === prop);
+        if (!group) return;
+        appState.currentProperty = prop;
 
-        const isCurrentlyCollapsed = clickedGroup.classList.contains('collapsed');
-
-        const allGroups = container.querySelectorAll('.property-group');
-        allGroups.forEach(group => {
-          group.classList.add('collapsed');
+        let html = `
+          <div class="card">
+            <div class="card-header"><h3 class="card-title">${group.propertyName}</h3></div>
+            <div class="card-content">
+        `;
+        group.options.forEach(option => {
+          html += `
+            <div class="option-group">
+              <div class="option-title">
+                <input type="checkbox" class="option-checkbox-all">
+                <label>${option.value}</label>
+              </div>
+              ${buildLayerHtml(buildTree(option.uniqueLayers), group.propertyName, option.value)}
+            </div>
+          `;
         });
-        
-        if (isCurrentlyCollapsed) {
-          clickedGroup.classList.remove('collapsed');
-        }
-        
+        html += `</div></div>`;
+        container.innerHTML = html;
+        setPage('property', group.propertyName);
+        updateGlobalCount();
+        return;
+      }
+
+      const toggleButton = event.target.closest('.layer-toggle');
+      if (toggleButton) {
+        const layerItem = toggleButton.closest('.layer-item');
+        if (!layerItem) return;
+        const isCollapsed = layerItem.classList.toggle('layer-item--collapsed');
+        toggleButton.setAttribute('aria-expanded', (!isCollapsed).toString());
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
       
@@ -538,6 +712,16 @@
       }
     });
 
+    backBtn.addEventListener('click', () => {
+      if (appState.groups && appState.groups.length) {
+        renderHome(appState.groups.map(g => g.propertyName));
+        updateGlobalCount();
+      } else {
+        renderHome();
+      }
+    });
+
+    // Resizer removed; window size is controlled from code.js only
   </script>
 </body>
 </html>
