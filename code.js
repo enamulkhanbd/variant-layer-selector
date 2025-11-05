@@ -1,118 +1,150 @@
 // Store the node the user originally selected (must be a COMPONENT or COMPONENT_SET)
 let originalSelection = null;
 
-// --- *** THE FIX IS HERE *** ---
 // Show the UI
-// Removed the 'resizable' property that was causing the error.
 figma.showUI(__html__, { 
   width: 340, 
   height: 480, 
   title: "Variant Layer Selector" 
 });
-// --- *** END FIX *** ---
-
 
 // --- Helper Functions ---
 
 async function findComponentSet(node) {
   if (!node) return null;
+
   if (node.type === 'COMPONENT_SET') {
     return node;
   }
-  // Only find component sets if a main component is selected
-  if (node.type === 'COMPONENT' && node.parent.type === 'COMPONENT_SET') {
+
+  if (node.type === 'COMPONENT' && node.parent && node.parent.type === 'COMPONENT_SET') {
     return node.parent;
   }
-  // Instance logic has been removed
+
+  if (node.type === 'COMPONENT') {
+    return node;
+  }
+
   return null;
 }
 
-// --- **FIXED: getLayers function** ---
-// This function now generates a structural path (e.g., "0/1/2/")
-// based on child indices, which is truly unique.
 function getLayers(node) {
-  let layerList = [];
+  const layerList = [];
 
-  // `namePrefix` is the human-readable path (e.g., "Header/Icon/")
-  // `indexPath` is the unique structural path (e.g., "0/1/")
   function traverse(childNode, namePrefix, indexPath) {
     const displayName = namePrefix + childNode.name;
-    const structuralPath = indexPath; // This path is unique
+    const structuralPath = indexPath;
 
-    // We push the display name, the ID, and the unique path
     layerList.push({ name: displayName, id: childNode.id, path: structuralPath });
-    
-    if ('children' in childNode) {
+
+    if ('children' in childNode && childNode.children.length) {
       childNode.children.forEach((grandChild, index) => {
-        // Recurse, appending the current name and index to the paths
         traverse(grandChild, displayName + '/', structuralPath + index + '/');
       });
     }
   }
 
-  if ('children' in node) {
+  if ('children' in node && node.children.length) {
     node.children.forEach((child, index) => {
-      // Start the traversal with the top-level children
       traverse(child, '', index + '/');
     });
   }
   return layerList;
 }
 
-// --- **FIXED: processSelection Function** ---
+function buildGroupsForSingleComponent(componentNode) {
+  const layers = getLayers(componentNode);
+  const layerMap = new Map();
+
+  for (const layer of layers) {
+    const key = layer.path;
+    if (!layerMap.has(key)) {
+      layerMap.set(key, { name: layer.name, path: layer.path, nodeIds: [] });
+    }
+    layerMap.get(key).nodeIds.push(layer.id);
+  }
+
+  return [
+    {
+      propertyName: 'Component Layers',
+      options: [
+        {
+          value: componentNode.name || 'Component',
+          uniqueLayers: Array.from(layerMap.values())
+        }
+      ]
+    }
+  ];
+}
+
+// --- Main selection processing ---
+
 async function processSelection() {
   const selection = figma.currentPage.selection;
-  
+
   if (selection.length === 0) {
-    figma.ui.postMessage({ type: 'no-selection', message: 'Please select a main component or component set.' });
+    figma.ui.postMessage({ type: 'no-selection', message: 'Please select a component, component set, or instance.' });
     originalSelection = null;
     return;
   }
 
-  let targetNode = selection[0]; // <-- Use a temporary variable
+  let targetNode = selection[0];
 
-  // --- *** MODIFIED: Support for FRAME, GROUP, and SECTION selections *** ---
-  // If the user selected a container, try to find the first
-  // valid component descendant to act as the selection context.
-  if (targetNode.type === 'FRAME' || targetNode.type === 'GROUP' || targetNode.type === 'SECTION') {
-    // Only look for main components, not instances
-    const validDescendant = targetNode.findOne(n => 
-      n.type === 'COMPONENT'
-    );
-    
-    if (validDescendant) {
-      targetNode = validDescendant; // Re-assign the target for processing
+  // Handle instance
+  if (targetNode.type === 'INSTANCE') {
+    if (targetNode.mainComponent) {
+      targetNode = targetNode.mainComponent;
     } else {
-      // No valid node found inside the container
-      figma.ui.postMessage({ type: 'no-selection', message: 'Selected frame/group/section does not contain a main component.' });
+      figma.ui.postMessage({ type: 'no-selection', message: 'Selected instance has no main component.' });
       originalSelection = null;
       return;
     }
   }
-  // --- *** END MODIFIED LOGIC *** ---
 
-  originalSelection = targetNode; // Store the node we're *actually* processing
-  const componentSet = await findComponentSet(originalSelection); // Pass it to findComponentSet
+  // Handle container selection
+  if (['FRAME', 'GROUP', 'SECTION'].includes(targetNode.type)) {
+    const validDescendant = targetNode.findOne(n => n.type === 'COMPONENT' || n.type === 'INSTANCE');
+    if (validDescendant) {
+      targetNode = validDescendant.type === 'INSTANCE' && validDescendant.mainComponent
+        ? validDescendant.mainComponent
+        : validDescendant;
+    } else {
+      figma.ui.postMessage({ type: 'no-selection', message: 'Selected container has no component inside.' });
+      originalSelection = null;
+      return;
+    }
+  }
 
-  if (!componentSet) {
-    // This message now correctly handles all non-component/set selections (like instances)
-    figma.ui.postMessage({ type: 'no-selection', message: 'Selected node is not part of a component set.' });
+  originalSelection = targetNode;
+
+  const componentOrSet = await findComponentSet(originalSelection);
+
+  if (!componentOrSet) {
+    figma.ui.postMessage({ type: 'no-selection', message: 'Selected node is not a component or component set.' });
     originalSelection = null;
     return;
   }
 
-  const definitions = componentSet.componentPropertyDefinitions;
-  const variants = componentSet.children.filter(n => n.type === 'COMPONENT');
+  // Handle single component
+  if (componentOrSet.type === 'COMPONENT') {
+    const groupsData = buildGroupsForSingleComponent(componentOrSet);
+    figma.ui.postMessage({ type: 'load-groups', data: groupsData });
+    return;
+  }
+
+  // Handle component set (variants)
+  const definitions = componentOrSet.componentPropertyDefinitions || {};
+  const variants = componentOrSet.children.filter(n => n.type === 'COMPONENT');
   const groupsData = [];
 
   for (const propName in definitions) {
     const propDefinition = definitions[propName];
-    
+
     let options = [];
     if (propDefinition.type === 'VARIANT') {
       options = propDefinition.variantOptions;
     } else if (propDefinition.type === 'BOOLEAN') {
-      options = ["True", "False"];
+      options = ['True', 'False'];
     } else {
       continue;
     }
@@ -124,32 +156,24 @@ async function processSelection() {
 
     for (const optionValue of options) {
       const propertyMatcher = `${propName}=${optionValue}`;
-      const matchingVariants = variants.filter(v => 
+      const matchingVariants = variants.filter(v =>
         v.name.split(', ').includes(propertyMatcher)
       );
 
-      if (matchingVariants.length === 0) {
-        continue;
-      }
+      if (matchingVariants.length === 0) continue;
 
-      // --- **FIXED: layerMap logic** ---
-      // The Map will now use the unique `layer.path` as its key,
       const layerMap = new Map();
       for (const variant of matchingVariants) {
         const layers = getLayers(variant);
         for (const layer of layers) {
-          const key = layer.path; // Use the unique structural path
-          
+          const key = layer.path;
           if (!layerMap.has(key)) {
-            // We store the human-readable name for display,
-            // AND the unique path itself for tree-building in the UI
             layerMap.set(key, { name: layer.name, path: layer.path, nodeIds: [] });
           }
-          // Group all node IDs that share this *exact* structural path
           layerMap.get(key).nodeIds.push(layer.id);
         }
       }
-      
+
       propertyGroup.options.push({
         value: optionValue,
         uniqueLayers: Array.from(layerMap.values())
@@ -160,49 +184,49 @@ async function processSelection() {
       groupsData.push(propertyGroup);
     }
   }
-  
+
   figma.ui.postMessage({ type: 'load-groups', data: groupsData });
 }
 
 // --- Plugin Event Listeners ---
-
-// Run the selection processor once when the plugin first loads
 processSelection();
-
-// Re-run the selection processor every time the user changes their selection
 figma.on('selectionchange', processSelection);
 
-// Listen for messages coming *from* the UI
+// --- Handle messages from the UI ---
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'select-layers') {
-    // This check is still useful in case the user selection was cleared
-    // after the UI was populated.
     if (!originalSelection) {
       figma.notify('Your selection has changed. Please re-select a component.', { error: true });
       return;
     }
 
-    const nodesToSelect = [];
+    const nodesToSelect = new Set();
 
-    // Instance-finding logic has been removed.
-    // We now *only* select the layers from the main component(s)
-    // using the IDs sent from the UI.
     for (const id of msg.ids) {
-      const mainLayer = await figma.getNodeByIdAsync(id);
-      if (mainLayer) {
-        nodesToSelect.push(mainLayer);
+      try {
+        const node = await figma.getNodeByIdAsync(id);
+        if (node) {
+          nodesToSelect.add(node);
+          // ✅ NEW FEATURE: Auto-select parent layers up the hierarchy
+          let parent = node.parent;
+          while (parent && parent.type !== 'PAGE') {
+            nodesToSelect.add(parent);
+            parent = parent.parent;
+          }
+        }
+      } catch (err) {
+        // skip invalid nodes
       }
     }
-    
-    // De-duplicate nodes
-    const uniqueNodes = Array.from(new Set(nodesToSelect));
+
+    const uniqueNodes = Array.from(nodesToSelect);
 
     figma.currentPage.selection = uniqueNodes;
-    
+
     if (uniqueNodes.length > 0) {
       figma.viewport.scrollAndZoomIntoView(uniqueNodes);
     }
-    
-    figma.notify(`Selected ${uniqueNodes.length} layers.`);
+
+    figma.notify(`Selected ${uniqueNodes.length} layer${uniqueNodes.length > 1 ? 's' : ''} (including parents).`);
   }
 };
