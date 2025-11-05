@@ -324,6 +324,21 @@
       }
     }
 
+    /* ✅ NEW: When a nested layer is checked, check all of its parent layer items in the UI */
+    function selectParentLayers(childCheckbox) {
+      // climb DOM: .layer-item-header -> .layer-item -> (parent) .layers-list -> .layer-item ...
+      let parentLayer = childCheckbox.closest('.layers-list')?.closest('.layer-item');
+      while (parentLayer) {
+        const parentCheckbox = parentLayer.querySelector(':scope > .layer-item-header .layer-checkbox');
+        if (parentCheckbox && !parentCheckbox.checked) {
+          parentCheckbox.checked = true;
+          // trigger change so counts/indeterminate states update correctly
+          parentCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        parentLayer = parentLayer.closest('.layers-list')?.closest('.layer-item');
+      }
+    }
+
     function buildTree(layers) {
       const map = new Map();
       const tree = [];
@@ -488,6 +503,10 @@
       }
       
       if (event.target.classList.contains('layer-checkbox')) {
+        if (event.target.checked) {
+          // ✅ ensure parents in the tree become checked visually
+          selectParentLayers(event.target);
+        }
         updateParentCheckboxState(event.target);
       }
 
