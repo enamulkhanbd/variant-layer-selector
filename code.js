@@ -2,10 +2,10 @@
 let originalSelection = null;
 
 // Show the UI
-figma.showUI(__html__, { 
-  width: 340, 
-  height: 480, 
-  title: "Variant Layer Selector" 
+figma.showUI(__html__, {
+  width: 340,
+  height: 480,
+  title: "Variant Layer Selector"
 });
 
 // --- Helper Functions ---
@@ -13,17 +13,13 @@ figma.showUI(__html__, {
 async function findComponentSet(node) {
   if (!node) return null;
 
-  if (node.type === 'COMPONENT_SET') {
-    return node;
-  }
+  if (node.type === 'COMPONENT_SET') return node;
 
   if (node.type === 'COMPONENT' && node.parent && node.parent.type === 'COMPONENT_SET') {
     return node.parent;
   }
 
-  if (node.type === 'COMPONENT') {
-    return node;
-  }
+  if (node.type === 'COMPONENT') return node;
 
   return null;
 }
@@ -49,6 +45,7 @@ function getLayers(node) {
       traverse(child, '', index + '/');
     });
   }
+
   return layerList;
 }
 
@@ -118,21 +115,20 @@ async function processSelection() {
   originalSelection = targetNode;
 
   const componentOrSet = await findComponentSet(originalSelection);
-
   if (!componentOrSet) {
     figma.ui.postMessage({ type: 'no-selection', message: 'Selected node is not a component or component set.' });
     originalSelection = null;
     return;
   }
 
-  // Handle single component
+  // Single component
   if (componentOrSet.type === 'COMPONENT') {
     const groupsData = buildGroupsForSingleComponent(componentOrSet);
     figma.ui.postMessage({ type: 'load-groups', data: groupsData });
     return;
   }
 
-  // Handle component set (variants)
+  // Component set (variants)
   const definitions = componentOrSet.componentPropertyDefinitions || {};
   const variants = componentOrSet.children.filter(n => n.type === 'COMPONENT');
   const groupsData = [];
@@ -149,10 +145,7 @@ async function processSelection() {
       continue;
     }
 
-    const propertyGroup = {
-      propertyName: propName,
-      options: []
-    };
+    const propertyGroup = { propertyName: propName, options: [] };
 
     for (const optionValue of options) {
       const propertyMatcher = `${propName}=${optionValue}`;
@@ -188,6 +181,23 @@ async function processSelection() {
   figma.ui.postMessage({ type: 'load-groups', data: groupsData });
 }
 
+// --- Utility: prune ancestors so only deepest nodes remain ---
+function pruneAncestors(nodes) {
+  // Turn Set<Node> into Array<Node> for iteration
+  const items = Array.from(nodes);
+
+  // For each node, walk up and remove ancestors that are present in the Set
+  for (const node of items) {
+    let p = node.parent;
+    while (p && p.type !== 'PAGE') {
+      if (nodes.has(p)) {
+        nodes.delete(p); // ensure ancestor isn't selected if a descendant is selected
+      }
+      p = p.parent;
+    }
+  }
+}
+
 // --- Plugin Event Listeners ---
 processSelection();
 figma.on('selectionchange', processSelection);
@@ -200,7 +210,7 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
 
-    const includeParents = !!msg.includeParents; // ✅ new toggle support
+    const includeParents = !!msg.includeParents; // from UI toggle
     const nodesToSelect = new Set();
 
     for (const id of msg.ids) {
@@ -209,7 +219,7 @@ figma.ui.onmessage = async (msg) => {
         if (node) {
           nodesToSelect.add(node);
 
-          // Only add parent layers if includeParents is true
+          // Only add parents when explicitly requested
           if (includeParents) {
             let parent = node.parent;
             while (parent && parent.type !== 'PAGE') {
@@ -218,9 +228,14 @@ figma.ui.onmessage = async (msg) => {
             }
           }
         }
-      } catch (err) {
-        // skip invalid nodes
+      } catch {
+        // ignore missing/invalid node ids
       }
+    }
+
+    // If parents are NOT included, enforce deepest-only selection
+    if (!includeParents) {
+      pruneAncestors(nodesToSelect);
     }
 
     const uniqueNodes = Array.from(nodesToSelect);
