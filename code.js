@@ -200,6 +200,7 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
 
+    const includeParents = !!msg.includeParents; // ✅ new toggle support
     const nodesToSelect = new Set();
 
     for (const id of msg.ids) {
@@ -207,11 +208,14 @@ figma.ui.onmessage = async (msg) => {
         const node = await figma.getNodeByIdAsync(id);
         if (node) {
           nodesToSelect.add(node);
-          // ✅ NEW FEATURE: Auto-select parent layers up the hierarchy
-          let parent = node.parent;
-          while (parent && parent.type !== 'PAGE') {
-            nodesToSelect.add(parent);
-            parent = parent.parent;
+
+          // Only add parent layers if includeParents is true
+          if (includeParents) {
+            let parent = node.parent;
+            while (parent && parent.type !== 'PAGE') {
+              nodesToSelect.add(parent);
+              parent = parent.parent;
+            }
           }
         }
       } catch (err) {
@@ -220,13 +224,13 @@ figma.ui.onmessage = async (msg) => {
     }
 
     const uniqueNodes = Array.from(nodesToSelect);
-
     figma.currentPage.selection = uniqueNodes;
 
     if (uniqueNodes.length > 0) {
       figma.viewport.scrollAndZoomIntoView(uniqueNodes);
     }
 
-    figma.notify(`Selected ${uniqueNodes.length} layer${uniqueNodes.length > 1 ? 's' : ''} (including parents).`);
+    const suffix = includeParents ? ' (including parents)' : '';
+    figma.notify(`Selected ${uniqueNodes.length} layer${uniqueNodes.length > 1 ? 's' : ''}${suffix}.`);
   }
 };
