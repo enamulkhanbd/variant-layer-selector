@@ -183,10 +183,7 @@ async function processSelection() {
 
 // --- Utility: prune ancestors so only deepest nodes remain ---
 function pruneAncestors(nodes) {
-  // Turn Set<Node> into Array<Node> for iteration
   const items = Array.from(nodes);
-
-  // For each node, walk up and remove ancestors that are present in the Set
   for (const node of items) {
     let p = node.parent;
     while (p && p.type !== 'PAGE') {
@@ -219,7 +216,7 @@ figma.ui.onmessage = async (msg) => {
         if (node) {
           nodesToSelect.add(node);
 
-          // Only add parents when explicitly requested
+          // Only add parent layers when explicitly requested
           if (includeParents) {
             let parent = node.parent;
             while (parent && parent.type !== 'PAGE') {
@@ -228,7 +225,7 @@ figma.ui.onmessage = async (msg) => {
             }
           }
         }
-      } catch {
+      } catch (err) {
         // ignore missing/invalid node ids
       }
     }
