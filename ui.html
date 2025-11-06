@@ -14,27 +14,25 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      overflow: hidden; /* Hide main scrollbar */
     }
 
     #container {
-      padding-bottom: 60px;
+      padding-bottom: 60px; /* Space for the footer */
       flex-grow: 1;
-      overflow-y: hidden;
+      overflow-y: hidden; /* Default to hidden, JS will manage it */
     }
     
     .info-text {
-      color: #2d2d2d;
+      color: #777;
       padding: 16px; 
-      height: 100%;
+      height: 100%; 
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       text-align: center;
-      font-size: 14px;
-      line-height: 22px;
     }
 
     /* --- ACCORDION STYLES --- */
@@ -104,7 +102,7 @@
       position: absolute;
       background: #e0e0e0;
       width: 1px;
-      left: -12px;
+      left: -12px; /* Positions line in the margin */
       transform: translateX(-0.5px);
       top: -17px;
       height: calc(100% + 17px);
@@ -112,14 +110,16 @@
     
     /* Stop line for the last option */
     .property-content > .option-group:last-child::before {
-      height: 32px;
+      height: 32px; /* (17px + 15px) */
     }
 
+
+    /* .option-title (Box Header) */
     .option-title {
       font-weight: 600;
       padding: 8px 12px; 
       background: #f5f5ff;
-      border-bottom: 1px solid #e0e0e0;
+      border-bottom: 1px solid #e0e0e0; /* Separator */
       display: flex;
       align-items: center;
       cursor: pointer;
@@ -280,7 +280,7 @@
     /* Tooltip CSS */
     #custom-tooltip {
       display: none;
-      position: fixed;
+      position: fixed; /* Use fixed for positioning relative to viewport */
       background: #333;
       color: white;
       padding: 4px 8px;
@@ -291,6 +291,8 @@
       max-width: 300px;
       white-space: normal;
       word-wrap: break-word;
+      
+      /* This positions the tooltip's RIGHT edge at the 'left' value */
       transform: translateX(-100%); 
     }
   </style>
@@ -324,13 +326,13 @@
       
       if (count === 0) {
         countEl.textContent = 'No layer selected';
-        button.textContent = 'Select Layers';
+        button.textContent = 'Select Layers'; // Button text when 0
       } else if (count === 1) {
         countEl.textContent = '1 layer selected';
-        button.textContent = 'Select Layer';
+        button.textContent = 'Select Layer'; // Button text when 1 (singular)
       } else {
         countEl.textContent = `${count} layers selected`;
-        button.textContent = 'Select Layers';
+        button.textContent = 'Select Layers'; // Button text when 2+ (plural)
       }
       
       button.disabled = (count === 0);
@@ -353,11 +355,18 @@
         if (cb.checked) checkedCount++;
         if (cb.indeterminate) indeterminateCount++;
       });
+      
+      // Check *all* boxes (including disabled ones) for indeterminate state
+      const allCheckboxesInGroup = optionGroup.querySelectorAll('.layer-checkbox');
+      let anyChildIndeterminate = false;
+      allCheckboxesInGroup.forEach(cb => {
+        if (cb.indeterminate) anyChildIndeterminate = true;
+      });
 
-      if (checkedCount === 0 && indeterminateCount === 0) {
+      if (checkedCount === 0 && !anyChildIndeterminate) {
         parentCheckbox.indeterminate = false;
         parentCheckbox.checked = false;
-      } else if (checkedCount === total && indeterminateCount === 0) {
+      } else if (checkedCount === total && !anyChildIndeterminate) {
         parentCheckbox.indeterminate = false;
         parentCheckbox.checked = true;
       } else {
@@ -379,11 +388,14 @@
       });
     }
     
+    // ✅ THIS IS THE FIXED updateAncestors FUNCTION
     function updateAncestors(layerItem) {
       let parentLayer = layerItem.closest('.layers-list')?.closest('.layer-item');
       while (parentLayer) {
         const parentCheckbox = parentLayer.querySelector(':scope > .layer-item-header .layer-checkbox');
-        if (!parentCheckbox) {
+        
+        // Skip if no parent checkbox or parent is disabled (is a dummy node)
+        if (!parentCheckbox || parentCheckbox.disabled) {
             parentLayer = parentLayer.closest('.layers-list')?.closest('.layer-item');
             continue;
         }
@@ -393,25 +405,21 @@
         
         directChildren.forEach(cb => {
           total++;
-          if (cb.indeterminate) anyIndeterminate = true;
           if (cb.checked) checked++;
+          if (cb.indeterminate) anyIndeterminate = true;
         });
-        
+
         if (total === 0) {
+           parentCheckbox.checked = false;
+           parentCheckbox.indeterminate = false;
+        } 
+        else if (checked === 0 && !anyIndeterminate) { // All children are un-checked
           parentCheckbox.checked = false;
           parentCheckbox.indeterminate = false;
         } 
-        else if (checked === 0 && !anyIndeterminate) {
-          parentCheckbox.checked = false;
-          parentCheckbox.indeterminate = false;
-        } 
-        else if (checked > 0 && (checked < total || anyIndeterminate)) {
+        else { // At least one child is checked or indeterminate
           parentCheckbox.checked = false;
           parentCheckbox.indeterminate = true;
-        }
-        else if (checked === total && !anyIndeterminate) {
-          parentCheckbox.checked = true;
-          parentCheckbox.indeterminate = false;
         }
         
         parentLayer = parentLayer.closest('.layers-list')?.closest('.layer-item');
@@ -525,11 +533,11 @@
 
       if (msg.type === 'load-groups') {
         container.innerHTML = '';
-        container.style.overflowY = 'auto';
+        container.style.overflowY = 'auto'; // Show scrollbar only if needed
         
         if (msg.data.length === 0) {
            container.innerHTML = `<p class="info-text">No variant properties found on this component set.</p>`;
-           container.style.overflowY = 'hidden';
+           container.style.overflowY = 'hidden'; // Hide scrollbar on empty
            updateGlobalCount();
            return;
         }
@@ -583,7 +591,7 @@
 
       if (msg.type === 'no-selection') {
         container.innerHTML = `<p class="info-text">${msg.message || 'Please select a component, variant, or instance.'}</p>`;
-        container.style.overflowY = 'hidden';
+        container.style.overflowY = 'hidden'; // Hide scrollbar on empty
         updateGlobalCount();
       }
     };
@@ -620,6 +628,7 @@
         }
       }
       
+      // ✅ THIS BLOCK IS FIXED
       if (event.target.classList.contains('layer-checkbox') && !event.target.disabled) {
         const layerItem = getLayerItemFromCheckbox(event.target);
         
@@ -630,9 +639,9 @@
         
         const isChecked = event.target.checked;
         
-        setDescendantsChecked(layerItem, isChecked); 
-        updateAncestors(layerItem);                           
-        updateParentCheckboxState(event.target);
+        setDescendantsChecked(layerItem, isChecked); // ✅ RESTORED: Parent now selects children
+        updateAncestors(layerItem); // ✅ FIXED: Child only makes parent indeterminate
+        updateParentCheckboxState(event.target); 
       }
 
       if (event.target.type === 'checkbox') {
@@ -699,14 +708,14 @@
         tooltipTimeout = setTimeout(() => {
           if (currentLabel === label && (label.scrollWidth > label.clientWidth || label.title)) {
             
-            tooltip.textContent = label.title;
+            tooltip.textContent = label.title; // Use title (full path) for tooltip
             tooltip.style.display = 'block';
             
             const rect = label.getBoundingClientRect();
-            tooltip.style.left = (rect.left - 10) + 'px';
+            tooltip.style.left = (rect.left - 10) + 'px'; // 10px gap
             tooltip.style.top = rect.top + 'px';
           }
-        }, 1000);
+        }, 1000); // 1 second delay
       }
     });
 
@@ -718,6 +727,8 @@
       }
     });
     
+    // (mousemove listener removed)
+
     container.addEventListener('scroll', () => {
       clearTimeout(tooltipTimeout);
       tooltip.style.display = 'none';
