@@ -14,17 +14,20 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
-      overflow: hidden; /* Hide main scrollbar */
+      overflow: hidden; 
     }
 
     #container {
       padding-bottom: 60px; /* Space for the footer */
       flex-grow: 1;
-      overflow-y: hidden; /* Default to hidden, JS will manage it */
+      overflow-y: hidden; /* Default to hidden; JS enables scroll when content loads */
     }
     
+    /* Updated styles for the empty state text */
     .info-text {
-      color: #777;
+      color: #2c2c2c;       /* Updated color */
+      font-size: 14px;       /* Updated font size */
+      line-height: 22px;     /* Updated line height */
       padding: 16px; 
       height: 100%; 
       box-sizing: border-box;
@@ -214,7 +217,7 @@
       margin-right: 8px;
     }
     
-    /* Style for disabled parent checkboxes */
+    /* Style for disabled parent checkboxes (nodes that are only containers) */
     .layer-item input:disabled + label {
       color: #999;
       cursor: default;
@@ -311,12 +314,16 @@
   <script>
     const container = document.getElementById('container');
     
+    // Tooltip setup
     const tooltip = document.createElement('div');
     tooltip.id = 'custom-tooltip';
     document.body.appendChild(tooltip);
     let tooltipTimeout = null;
     let currentLabel = null; 
 
+    /**
+     * Updates the "X layers selected" text and enables/disables the main button.
+     */
     function updateGlobalCount() {
       const count = document.querySelectorAll('.layer-checkbox:checked').length;
       const countEl = document.getElementById('selection-count');
@@ -326,37 +333,40 @@
       
       if (count === 0) {
         countEl.textContent = 'No layer selected';
-        button.textContent = 'Select Layers'; // Button text when 0
+        button.textContent = 'Select Layers';
       } else if (count === 1) {
         countEl.textContent = '1 layer selected';
-        button.textContent = 'Select Layer'; // Button text when 1 (singular)
+        button.textContent = 'Select Layer';
       } else {
         countEl.textContent = `${count} layers selected`;
-        button.textContent = 'Select Layers'; // Button text when 2+ (plural)
+        button.textContent = 'Select Layers';
       }
       
       button.disabled = (count === 0);
     }
     
+    /**
+     * Updates the "Select All" checkbox state (checked, unchecked, indeterminate)
+     * based on the state of its child layer checkboxes.
+     */
     function updateParentCheckboxState(childCheckbox) {
       const optionGroup = childCheckbox.closest('.option-group');
       if (!optionGroup) return;
 
       const parentCheckbox = optionGroup.querySelector('.option-checkbox-all');
+      // Only count selectable (non-disabled) layers for totals
       const allLayerCheckboxes = optionGroup.querySelectorAll('.layer-checkbox:not(:disabled)');
       
       if (!parentCheckbox || allLayerCheckboxes.length === 0) return;
 
       const total = allLayerCheckboxes.length;
       let checkedCount = 0;
-      let indeterminateCount = 0;
       
       allLayerCheckboxes.forEach(cb => {
         if (cb.checked) checkedCount++;
-        if (cb.indeterminate) indeterminateCount++;
       });
       
-      // Check *all* boxes (including disabled ones) for indeterminate state
+      // Also check tree nodes for indeterminate state
       const allCheckboxesInGroup = optionGroup.querySelectorAll('.layer-checkbox');
       let anyChildIndeterminate = false;
       allCheckboxesInGroup.forEach(cb => {
@@ -370,15 +380,23 @@
         parentCheckbox.indeterminate = false;
         parentCheckbox.checked = true;
       } else {
+        // This happens if some are checked, or if a child node is indeterminate
         parentCheckbox.indeterminate = true;
         parentCheckbox.checked = false;
       }
     }
 
+    /**
+     * Helper to get the <li> wrapper for a checkbox.
+     */
     function getLayerItemFromCheckbox(cb) {
       return cb.closest('.layer-item');
     }
     
+    /**
+     * Checks/unchecks all selectable descendants of a given layer item.
+     * This is called when a parent tree node (like "Icon") is clicked.
+     */
     function setDescendantsChecked(layerItem, checked) {
       if (!layerItem) return;
       const descendants = layerItem.querySelectorAll('.layers-list .layer-checkbox:not(:disabled)');
@@ -388,7 +406,11 @@
       });
     }
     
-    // ✅ THIS IS THE FIXED updateAncestors FUNCTION
+    /**
+     * Updates the visual state (indeterminate) of all parent nodes in a tree.
+     * This is called when a child (like "Vector") is clicked.
+     * It does *not* check the parent, only sets its visual state.
+     */
     function updateAncestors(layerItem) {
       let parentLayer = layerItem.closest('.layers-list')?.closest('.layer-item');
       while (parentLayer) {
@@ -400,6 +422,7 @@
             continue;
         }
         
+        // Check the state of all direct children
         const directChildren = parentLayer.querySelectorAll(':scope > .layers-list > .layer-item > .layer-item-header .layer-checkbox:not(:disabled)');
         let total = 0, checked = 0, anyIndeterminate = false;
         
@@ -426,10 +449,17 @@
       }
     }
 
+    /**
+     * Builds the nested tree structure from the flat list of layers.
+     * It uses a 2-pass system to create "dummy" parent nodes
+     * that might not have IDs themselves but are needed for the hierarchy.
+     */
     function buildTree(layers) {
       const map = new Map();
-      const tree = []; 
+      const tree = []; // This will be the root
 
+      // Pass 1: Create all nodes, including "dummy" parent nodes.
+      // E.g., for "Group/Icon", it creates "Group" then "Group/Icon".
       for (const layer of layers) {
         let currentPath = '';
         const parts = layer.name.split('/');
@@ -439,45 +469,55 @@
           currentPath = (i === 0) ? part : `${currentPath}/${part}`;
           
           if (!map.has(currentPath)) {
+            // Create a dummy node if it doesn't exist
             map.set(currentPath, { 
               name: currentPath, 
-              nodeIds: [], 
+              nodeIds: [], // Dummy parents have no IDs by default
               children: [] 
             });
           }
           
           if (i === parts.length - 1) {
+            // This is the actual layer from the data.
+            // Merge it with the (possibly dummy) node we just created.
             const existingNode = map.get(currentPath);
             map.set(currentPath, {
-              ...existingNode, 
-              ...layer,         
+              ...existingNode, // Keep 'children' array
+              ...layer,         // Overwrite with real data (name, path, nodeIds)
             });
           }
         }
       }
 
+      // Pass 2: Link nodes to parents.
       for (const [name, node] of map.entries()) {
         const parts = name.split('/');
         if (parts.length > 1) {
           parts.pop();
           const parentName = parts.join('/');
           const parent = map.get(parentName); 
+          // Parent is guaranteed to exist because of Pass 1
           if (parent) {
             parent.children.push(node);
           } else {
+             // Should be unreachable, but as a fallback:
              tree.push(node);
           }
         } else {
+          // Root node
           tree.push(node);
         }
       }
 
+      // --- Helper function to sort nodes recursively ---
       function sortChildren(nodeList) {
+        // Sort the current list by display name
         nodeList.sort((a, b) => {
           const nameA = a.name.split('/').pop();
           const nameB = b.name.split('/').pop();
           return nameA.localeCompare(nameB);
         });
+        // Recursively sort the children of each node
         for (const node of nodeList) {
           if (node.children.length > 0) {
             sortChildren(node.children);
@@ -489,6 +529,9 @@
       return tree;
     }
     
+    /**
+     * Recursively generates the HTML for the layer tree.
+     */
     function buildLayerHtml(layers, propertyName, optionValue) {
       if (!layers || layers.length === 0) return '';
       
@@ -499,11 +542,13 @@
         const hasChildren = layer.children && layer.children.length > 0;
         
         const nodeIdsValue = JSON.stringify(layer.nodeIds || []);
+        // ID must be unique, using the full name path is reliable
         const uniqueId = `cb-${propertyName}-${optionValue}-${layer.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
         const displayName = layer.name.split('/').pop();
 
         html += `<div class="layer-item">`;
         
+        // If a node is just a container (no IDs), disable its checkbox.
         html += `
           <div class="layer-item-header">
             <input 
@@ -528,20 +573,26 @@
       return html;
     }
 
+    /**
+     * Handles messages from the plugin's main code (code.js).
+     */
     window.onmessage = event => {
       const msg = event.data.pluginMessage;
 
+      // --- Message: load-groups ---
+      // This is the main message to build the UI
       if (msg.type === 'load-groups') {
         container.innerHTML = '';
-        container.style.overflowY = 'auto'; // Show scrollbar only if needed
+        container.style.overflowY = 'auto'; // Enable scrolling
         
         if (msg.data.length === 0) {
            container.innerHTML = `<p class="info-text">No variant properties found on this component set.</p>`;
-           container.style.overflowY = 'hidden'; // Hide scrollbar on empty
+           container.style.overflowY = 'hidden'; // Disable scrolling
            updateGlobalCount();
            return;
         }
 
+        // Build the HTML for each property and its options
         msg.data.forEach(property => {
           let propertyHtml = `
             <div class="property-group collapsed">
@@ -562,7 +613,6 @@
             `;
             
             const layerTree = buildTree(option.uniqueLayers);
-            
             propertyHtml += buildLayerHtml(layerTree, property.propertyName, option.value);
 
             propertyHtml += `</div>`;
@@ -576,11 +626,13 @@
           container.innerHTML += propertyHtml;
         });
 
+        // Open the first accordion by default
         const firstGroup = container.querySelector('.property-group');
         if (firstGroup) {
           firstGroup.classList.remove('collapsed');
         }
         
+        // Run an initial state update for all parents
         document.querySelectorAll('.layer-checkbox:not(:disabled)').forEach(cb => {
           updateAncestors(getLayerItemFromCheckbox(cb));
           updateParentCheckboxState(cb);
@@ -589,14 +641,21 @@
         updateGlobalCount();
       }
 
+      // --- Message: no-selection ---
+      // Show the empty state
       if (msg.type === 'no-selection') {
         container.innerHTML = `<p class="info-text">${msg.message || 'Please select a component, variant, or instance.'}</p>`;
-        container.style.overflowY = 'hidden'; // Hide scrollbar on empty
+        container.style.overflowY = 'hidden'; // Disable scrolling
         updateGlobalCount();
       }
     };
 
+    /**
+     * Click handler for the main "Select Layers" button.
+     * Gathers all checked, non-disabled layer IDs and sends them to code.js.
+     */
     document.getElementById('select-button').onclick = () => {
+      // Only get IDs from checked boxes that are not disabled
       const checkedBoxes = document.querySelectorAll('.layer-checkbox:checked:not(:disabled)');
       const allIdsToSelect = new Set();
       
@@ -613,8 +672,12 @@
       }, '*');
     };
 
+    /**
+     * Global 'change' event listener for all checkboxes.
+     */
     document.addEventListener('change', event => {
       
+      // --- Case 1: "Select All" checkbox was clicked ---
       if (event.target.classList.contains('option-checkbox-all')) {
         const isChecked = event.target.checked;
         event.target.indeterminate = false; 
@@ -624,14 +687,16 @@
           const layerCheckboxes = optionGroup.querySelectorAll('.layer-checkbox:not(:disabled)');
           layerCheckboxes.forEach(cb => { cb.checked = isChecked; cb.indeterminate = false; });
           
+          // Update parent indeterminate states
           layerCheckboxes.forEach(cb => updateAncestors(getLayerItemFromCheckbox(cb)));
         }
       }
       
-      // ✅ THIS BLOCK IS FIXED
+      // --- Case 2: A layer checkbox in the tree was clicked ---
       if (event.target.classList.contains('layer-checkbox') && !event.target.disabled) {
         const layerItem = getLayerItemFromCheckbox(event.target);
         
+        // If a box was indeterminate, a click makes it checked
         if (event.target.indeterminate) {
           event.target.checked = true;
           event.target.indeterminate = false;
@@ -639,18 +704,27 @@
         
         const isChecked = event.target.checked;
         
-        setDescendantsChecked(layerItem, isChecked); // ✅ RESTORED: Parent now selects children
-        updateAncestors(layerItem); // ✅ FIXED: Child only makes parent indeterminate
+        // This is the logic that makes parents select children
+        setDescendantsChecked(layerItem, isChecked); 
+        // This is the logic that makes children update parent's visual state
+        updateAncestors(layerItem);
+        // This updates the main "Select All" checkbox
         updateParentCheckboxState(event.target); 
       }
 
+      // Update the global count after any checkbox change
       if (event.target.type === 'checkbox') {
         updateGlobalCount();
       }
     });
 
+    /**
+     * Global 'click' event listener for handling clicks on non-checkbox elements
+     * (like labels or headers) to toggle their corresponding checkbox.
+     */
     container.addEventListener('click', event => {
       
+      // --- Case 1: Clicked an accordion header ---
       const header = event.target.closest('.property-header');
       if (header) {
         const clickedGroup = header.closest('.property-group');
@@ -658,11 +732,13 @@
 
         const isCurrentlyCollapsed = clickedGroup.classList.contains('collapsed');
 
+        // Close all other groups
         const allGroups = container.querySelectorAll('.property-group');
         allGroups.forEach(group => {
           group.classList.add('collapsed');
         });
         
+        // Toggle the clicked one
         if (isCurrentlyCollapsed) {
           clickedGroup.classList.remove('collapsed');
         }
@@ -670,29 +746,35 @@
         return;
       }
       
+      // --- Case 2: Clicked a "Select All" title ---
       const optionTitle = event.target.closest('.option-title');
       if (optionTitle && event.target.type !== 'checkbox') {
         const checkbox = optionTitle.querySelector('.option-checkbox-all');
         if (checkbox) {
           checkbox.checked = !checkbox.checked;
+          // Dispatch a 'change' event to trigger all the logic
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
         return;
       }
 
+      // --- Case 3: Clicked a layer item's label/header ---
       const layerHeader = event.target.closest('.layer-item-header');
       if (layerHeader && event.target.type !== 'checkbox') {
         const checkbox = layerHeader.querySelector('.layer-checkbox');
+        // Only toggle non-disabled checkboxes
         if (checkbox && !checkbox.disabled) {
           checkbox.checked = !checkbox.checked;
+          // Dispatch a 'change' event to trigger all the logic
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
         return;
       }
     });
 
-    /* Tooltip Event Listeners */
-    
+    /**
+     * Event listeners for showing the tooltip.
+     */
     container.addEventListener('mouseover', event => {
       let label;
       if (event.target.classList?.contains('layer-item-header')) {
@@ -706,9 +788,11 @@
         clearTimeout(tooltipTimeout); 
         
         tooltipTimeout = setTimeout(() => {
-          if (currentLabel === label && (label.scrollWidth > label.clientWidth || label.title)) {
+          // Show tooltip only if text is truncated (overflowing)
+          if (currentLabel === label && (label.scrollWidth > label.clientWidth)) {
             
-            tooltip.textContent = label.title; // Use title (full path) for tooltip
+            // Show the label's text (e.g., "Vector") not the full path
+            tooltip.textContent = label.textContent; 
             tooltip.style.display = 'block';
             
             const rect = label.getBoundingClientRect();
@@ -727,8 +811,7 @@
       }
     });
     
-    // (mousemove listener removed)
-
+    // Hide tooltip on scroll to prevent it from getting stuck
     container.addEventListener('scroll', () => {
       clearTimeout(tooltipTimeout);
       tooltip.style.display = 'none';
