@@ -1,5 +1,6 @@
 // Store the node the user originally selected (must be a COMPONENT or COMPONENT_SET)
 let originalSelection = null;
+let selectionTimeout = null;
 
 // Show the UI
 figma.showUI(__html__, {
@@ -54,7 +55,7 @@ function buildGroupsForSingleComponent(componentNode) {
   const layerMap = new Map();
 
   for (const layer of layers) {
-    const key = layer.path;
+    const key = layer.name;
     if (!layerMap.has(key)) {
       layerMap.set(key, { name: layer.name, path: layer.path, nodeIds: [] });
     }
@@ -159,7 +160,7 @@ async function processSelection() {
       for (const variant of matchingVariants) {
         const layers = getLayers(variant);
         for (const layer of layers) {
-          const key = layer.path;
+          const key = layer.name;
           if (!layerMap.has(key)) {
             layerMap.set(key, { name: layer.name, path: layer.path, nodeIds: [] });
           }
@@ -181,14 +182,13 @@ async function processSelection() {
   figma.ui.postMessage({ type: 'load-groups', data: groupsData });
 }
 
-// --- Utility: prune ancestors so only deepest nodes remain ---
 function pruneAncestors(nodes) {
   const items = Array.from(nodes);
   for (const node of items) {
     let p = node.parent;
     while (p && p.type !== 'PAGE') {
       if (nodes.has(p)) {
-        nodes.delete(p); // ensure ancestor isn't selected if a descendant is selected
+        nodes.delete(p);
       }
       p = p.parent;
     }
@@ -197,7 +197,25 @@ function pruneAncestors(nodes) {
 
 // --- Plugin Event Listeners ---
 processSelection();
-figma.on('selectionchange', processSelection);
+// --- START OF MODIFIED SECTION ---
+figma.on('selectionchange', () => {
+  // Clear any existing timer
+  if (selectionTimeout) {
+    clearTimeout(selectionTimeout);
+  }
+
+  // Set a timer
+  selectionTimeout = setTimeout(async () => {
+    try {
+      // We wrap this in a try/catch just to be safe
+      await processSelection();
+    } catch (e) {
+      console.error('Error during selection processing:', e);
+    }
+  }, 200); // 200ms delay
+});
+// --- END OF MODIFIED SECTION ---
+
 
 // --- Handle messages from the UI ---
 figma.ui.onmessage = async (msg) => {
@@ -207,7 +225,6 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
 
-    const includeParents = !!msg.includeParents; // from UI toggle
     const nodesToSelect = new Set();
 
     for (const id of msg.ids) {
@@ -215,24 +232,9 @@ figma.ui.onmessage = async (msg) => {
         const node = await figma.getNodeByIdAsync(id);
         if (node) {
           nodesToSelect.add(node);
-
-          // Only add parent layers when explicitly requested
-          if (includeParents) {
-            let parent = node.parent;
-            while (parent && parent.type !== 'PAGE') {
-              nodesToSelect.add(parent);
-              parent = parent.parent;
-            }
-          }
         }
-      } catch (err) {
-        // ignore missing/invalid node ids
+      } catch (e) {
       }
-    }
-
-    // If parents are NOT included, enforce deepest-only selection
-    if (!includeParents) {
-      pruneAncestors(nodesToSelect);
     }
 
     const uniqueNodes = Array.from(nodesToSelect);
@@ -241,8 +243,7 @@ figma.ui.onmessage = async (msg) => {
     if (uniqueNodes.length > 0) {
       figma.viewport.scrollAndZoomIntoView(uniqueNodes);
     }
-
-    const suffix = includeParents ? ' (including parents)' : '';
-    figma.notify(`Selected ${uniqueNodes.length} layer${uniqueNodes.length > 1 ? 's' : ''}${suffix}.`);
+    
+    figma.notify(`Selected ${uniqueNodes.length} layer${uniqueNodes.length > 1 ? 's' : ''}.`);
   }
 };
