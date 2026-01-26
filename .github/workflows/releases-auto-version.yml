@@ -195,12 +195,23 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.compute.outputs.new_tag }}"
+          LAST_TAG="${{ steps.compute.outputs.last_tag }}"
 
-          # Default body if RELEASES.md missing or section not found
+          # Default body: commit subjects since last tag
+          if git rev-parse "${LAST_TAG}" >/dev/null 2>&1; then
+            git log --format='- %s' "${LAST_TAG}..HEAD" > .commit_notes.txt
+          else
+            git log --format='- %s' > .commit_notes.txt
+          fi
+
+          if [ ! -s .commit_notes.txt ]; then
+            echo "- Release created by CI" > .commit_notes.txt
+          fi
+
           {
             echo "${TAG}"
             echo ""
-            echo "- Release created by CI"
+            cat .commit_notes.txt
           } > release_notes.txt
 
           [ -f RELEASES.md ] || exit 0
