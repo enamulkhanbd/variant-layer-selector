@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Variant Layer Selector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f2e8;
+      --bg-2: #eef4ef;
+      --ink: #1f2a22;
+      --muted: #516055;
+      --accent: #0f7a63;
+      --accent-2: #e67f34;
+      --card: #ffffff;
+      --border: #d9d3c6;
+      --shadow: 0 20px 40px rgba(16, 26, 20, 0.12);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at top left, #ffffff 0%, var(--bg) 45%, var(--bg-2) 100%);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: absolute;
+      width: 520px;
+      height: 520px;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.5;
+      z-index: 0;
+    }
+
+    body::before {
+      top: -200px;
+      left: -180px;
+      background: rgba(15, 122, 99, 0.18);
+    }
+
+    body::after {
+      bottom: -240px;
+      right: -200px;
+      background: rgba(230, 127, 52, 0.18);
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 64px 24px 96px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      margin: 0 0 12px;
+    }
+
+    h1 {
+      font-size: clamp(2.6rem, 2.2rem + 1.6vw, 3.6rem);
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      font-size: clamp(1.6rem, 1.4rem + 0.6vw, 2.2rem);
+    }
+
+    p {
+      margin: 0 0 16px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+      gap: 32px;
+      align-items: stretch;
+      margin-bottom: 56px;
+    }
+
+    .hero-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(15, 122, 99, 0.12);
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 18px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-weight: 600;
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 12px 24px rgba(15, 122, 99, 0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 26px rgba(15, 122, 99, 0.3);
+    }
+
+    .cta.secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+
+    .hero-meta {
+      display: grid;
+      gap: 16px;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .meta-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent-2);
+      margin-top: 6px;
+    }
+
+    .section {
+      margin-bottom: 56px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .section-kicker {
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--accent);
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid.features {
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .grid.two-col {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      padding: 20px;
+      box-shadow: 0 10px 24px rgba(16, 26, 20, 0.08);
+    }
+
+    .card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .chip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(230, 127, 52, 0.12);
+      color: #9a4a0f;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    ol.steps,
+    ul.clean {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    ol.steps li,
+    ul.clean li {
+      margin-bottom: 8px;
+    }
+
+    .callout {
+      border-left: 4px solid var(--accent-2);
+      padding: 16px 18px;
+      background: rgba(230, 127, 52, 0.08);
+      border-radius: 12px;
+    }
+
+    .code-list {
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .reveal {
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .delay-1 { animation-delay: 0.05s; }
+    .delay-2 { animation-delay: 0.12s; }
+    .delay-3 { animation-delay: 0.2s; }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    @media (max-width: 920px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      main {
+        padding: 48px 18px 72px;
+      }
+
+      .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .cta {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="hero-card reveal">
+        <span class="badge">Figma plugin</span>
+        <h1>Variant Layer Selector</h1>
+        <p>
+          Select matching layers across variants and components without hunting the layer tree. The plugin reads your
+          selection, builds a grouped layer tree per variant option, and lets you select equivalent layers across variants
+          with a single click.
+        </p>
+        <div class="hero-actions">
+          <a class="cta" href="#how-to-use">Run in Figma</a>
+          <a class="cta secondary" href="#start-development">Start development</a>
+        </div>
+      </div>
+      <div class="hero-card hero-meta reveal delay-1">
+        <h3>At a glance</h3>
+        <div class="meta-row">
+          <span class="meta-dot"></span>
+          <div>
+            <strong>Targets variants fast.</strong>
+            <p>Matches equivalent layers by structural position across the entire component set.</p>
+          </div>
+        </div>
+        <div class="meta-row">
+          <span class="meta-dot"></span>
+          <div>
+            <strong>Works with real selections.</strong>
+            <p>Accepts instances, frames, groups, and sections by resolving to the correct component.</p>
+          </div>
+        </div>
+        <div class="meta-row">
+          <span class="meta-dot"></span>
+          <div>
+            <strong>Choose, then zoom.</strong>
+            <p>Bulk select layers from the tree and jump directly to them on the canvas.</p>
+          </div>
+        </div>
+        <div class="chips">
+          <span class="chip">Component sets</span>
+          <span class="chip">Standalone components</span>
+          <span class="chip">Live updates</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Features</div>
+          <h2>Built for fast variant alignment</h2>
+        </div>
+      </div>
+      <div class="grid features">
+        <div class="card reveal">
+          <h3>Flexible entry points</h3>
+          <p>Works with component sets, standalone components, and instances in real canvas workflows.</p>
+        </div>
+        <div class="card reveal delay-1">
+          <h3>Structural matching</h3>
+          <p>Matches layers by index path so equivalent nodes stay aligned across variants.</p>
+        </div>
+        <div class="card reveal delay-2">
+          <h3>Tree-based selection</h3>
+          <p>Expand the hierarchy and bulk select per variant option without losing context.</p>
+        </div>
+        <div class="card reveal delay-3">
+          <h3>Instant focus</h3>
+          <p>Selects and zooms to layers on the canvas for rapid editing.</p>
+        </div>
+        <div class="card reveal">
+          <h3>Selection aware</h3>
+          <p>Live updates keep the UI synced as you switch components.</p>
+        </div>
+        <div class="card reveal delay-1">
+          <h3>Resolves containers</h3>
+          <p>Frames, groups, and sections resolve to the first component or instance inside.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="how-it-works">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">How it works</div>
+          <h2>Smart grouping without the guesswork</h2>
+        </div>
+      </div>
+      <div class="grid two-col">
+        <div class="card reveal">
+          <h3>Property driven grouping</h3>
+          <p>For component sets, layers are grouped by variant property and option value.</p>
+        </div>
+        <div class="card reveal delay-1">
+          <h3>Index path alignment</h3>
+          <p>Layers are matched by their structural index path, not just by name.</p>
+        </div>
+        <div class="card reveal delay-2">
+          <h3>Standalone support</h3>
+          <p>Standalone components are treated as a single group called Component Layers.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="how-to-use">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">How to use</div>
+          <h2>Run the plugin in under a minute</h2>
+        </div>
+      </div>
+      <div class="card reveal">
+        <ol class="steps">
+          <li>Select a component set, a variant within a set, or an instance on the canvas.</li>
+          <li>Run: Plugins &gt; Variant Layer Selector.</li>
+          <li>Expand a property group and pick a variant option.</li>
+          <li>Check the layers you want (use the option checkbox to select all).</li>
+          <li>Click Select Layers to highlight them on the canvas.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section" id="start-development">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Start development</div>
+          <h2>Iterate quickly with the dev plugin</h2>
+        </div>
+      </div>
+      <div class="grid two-col">
+        <div class="card reveal">
+          <ol class="steps">
+            <li>Figma: Plugins &gt; Development &gt; Import plugin from manifest.</li>
+            <li>Select <strong>layer-selector/manifest.json</strong>.</li>
+            <li>Run from Plugins &gt; Development &gt; Variant Layer Selector.</li>
+          </ol>
+        </div>
+        <div class="card reveal delay-1">
+          <ol class="steps">
+            <li>Edit <strong>code.js</strong> (main thread) or <strong>ui.html</strong> (UI).</li>
+            <li>Reload the plugin: Plugins &gt; Development &gt; Reload.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="project-structure">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Project structure</div>
+          <h2>Files that matter</h2>
+        </div>
+      </div>
+      <div class="card reveal">
+        <ul class="clean code-list">
+          <li>manifest.json - Figma plugin manifest.</li>
+          <li>code.js - Core selection and grouping logic.</li>
+          <li>ui.html - UI rendering and interactions.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="notes">
+      <div class="section-header">
+        <div>
+          <div class="section-kicker">Notes</div>
+          <h2>Selection behavior</h2>
+        </div>
+      </div>
+      <div class="callout reveal">
+        <ul class="clean">
+          <li>If nothing is selected, the plugin prompts you to select a component, variant, or instance.</li>
+          <li>Instances resolve to their main component; containers resolve to the first component or instance inside.</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer>
+      <span>Variant Layer Selector</span>
+      <span>Built for fast variant layer selection in Figma.</span>
+    </footer>
+  </main>
+</body>
+</html>
