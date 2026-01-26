@@ -1,5 +1,8 @@
 # Releases
 
+## v2.2.0 — 2026-01-26
+- improve release notes and packaging
+
 ## v2.1.0 — 2026-01-26
 - improve release notes and automation
 
