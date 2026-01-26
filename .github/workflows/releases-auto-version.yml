@@ -139,6 +139,9 @@ jobs:
 
           TAG="${{ steps.compute.outputs.new_tag }}"
 
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           # Avoid re-tagging if tag exists
           if git rev-parse "${TAG}" >/dev/null 2>&1; then
             echo "Tag ${TAG} already exists. Skipping."
