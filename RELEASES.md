@@ -1,5 +1,8 @@
 # Releases
 
+## v2.4.0 — 2026-01-26
+- enable fully automated releases
+
 ## v2.3.0 — 2026-01-26
 - improve release notes
 
