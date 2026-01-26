@@ -55,33 +55,34 @@ jobs:
 
           echo "Created $ZIP"
 
-      - name: Build release notes (extract section from RELEASES.md)
+      - name: Build release notes (from RELEASES.md if available)
         shell: bash
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
 
-          # Default body if RELEASES.md is missing or tag section not found
-          echo "${TAG}" > release_notes.txt
-          echo "" >> release_notes.txt
-          echo "- Release created by CI" >> release_notes.txt
+          # Default body if RELEASES.md missing or section not found
+          {
+            echo "${TAG}"
+            echo ""
+            echo "- Release created by CI"
+          } > release_notes.txt
 
-          if [ ! -f RELEASES.md ]; then
-            exit 0
-          fi
+          [ -f RELEASES.md ] || exit 0
 
-          # Extract notes under "## vX.Y.Z" until next "## "
-          awk -v tag="## "TAG '
-            $0 == tag {found=1; next}
+          # Extract lines after "## vX.Y.Z" until next "## "
+          awk -v header="## ${TAG}" '
+            $0 == header {found=1; next}
             found && /^## / {exit}
             found {print}
-          ' TAG="${TAG}" RELEASES.md > extracted.txt || true
+          ' RELEASES.md > extracted.txt || true
 
-          # If extracted has content, use it
           if [ -s extracted.txt ]; then
-            echo "${TAG}" > release_notes.txt
-            echo "" >> release_notes.txt
-            cat extracted.txt >> release_notes.txt
+            {
+              echo "${TAG}"
+              echo ""
+              cat extracted.txt
+            } > release_notes.txt
           fi
 
       - name: Create GitHub Release and upload zip

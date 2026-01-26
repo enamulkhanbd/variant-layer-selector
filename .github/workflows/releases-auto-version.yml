@@ -26,16 +26,19 @@ jobs:
           set -euo pipefail
           git fetch --tags --force
 
+          # Latest tag like v1.2.3 (fallback if none)
           LAST_TAG="$(git tag --list 'v*' --sort=-v:refname | head -n 1 || true)"
           [ -z "${LAST_TAG}" ] && LAST_TAG="v0.0.0"
           echo "last_tag=${LAST_TAG}" >> "$GITHUB_OUTPUT"
 
+          # Subjects since last tag (or all history if first release)
           if [ "${LAST_TAG}" = "v0.0.0" ]; then
             SUBJECTS="$(git log --format=%s)"
           else
             SUBJECTS="$(git log --format=%s "${LAST_TAG}..HEAD")"
           fi
 
+          # Decide bump priority: major > minor > patch
           BUMP="none"
           echo "${SUBJECTS}" | grep -E '^Breaking:' >/dev/null 2>&1 && BUMP="major" || true
           if [ "${BUMP}" = "none" ]; then
@@ -46,6 +49,7 @@ jobs:
           fi
           echo "bump=${BUMP}" >> "$GITHUB_OUTPUT"
 
+          # Collect "Releases:" lines for RELEASES.md
           NOTES="$(echo "${SUBJECTS}" | grep -E '^Releases:' || true)"
           if [ -z "${NOTES}" ]; then
             echo "found_releases=false" >> "$GITHUB_OUTPUT"
@@ -54,6 +58,7 @@ jobs:
             echo "${NOTES}" | sed -E 's/^Releases:\s*/- /' > .releases_bullets.txt
           fi
 
+          # Parse last tag vX.Y.Z and bump
           V="${LAST_TAG#v}"
           IFS='.' read -r MA MI PA <<< "$V"
           MA="${MA:-0}"; MI="${MI:-0}"; PA="${PA:-0}"
@@ -69,11 +74,12 @@ jobs:
           echo "new_tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Stop if no version bump detected
-        if: steps.compute.outputs.bump == 'none'
-        run: echo "No Breaking:/Releases:/Fix: commits since last tag. Skipping."
+        if: ${{ steps.compute.outputs.bump == 'none' }}
+        run: |
+          echo "No Breaking:/Releases:/Fix: commits since last tag. Skipping."
 
       - name: Update RELEASES.md
-        if: steps.compute.outputs.bump != 'none' && steps.compute.outputs.found_releases == 'true'
+        if: ${{ steps.compute.outputs.bump != 'none' && steps.compute.outputs.found_releases == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -82,6 +88,7 @@ jobs:
           TAG="${{ steps.compute.outputs.new_tag }}"
           HEADER="## ${TAG} — ${DATE}"
 
+          # Create file if missing
           if [ ! -f RELEASES.md ]; then
             echo "# Releases" > RELEASES.md
             echo "" >> RELEASES.md
@@ -110,7 +117,7 @@ jobs:
           mv "${TMP}" RELEASES.md
 
       - name: Commit RELEASES.md (if changed)
-        if: steps.compute.outputs.bump != 'none' && steps.compute.outputs.found_releases == 'true'
+        if: ${{ steps.compute.outputs.bump != 'none' && steps.compute.outputs.found_releases == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -125,13 +132,14 @@ jobs:
           git push
 
       - name: Create and push Git tag
-        if: steps.compute.outputs.bump != 'none'
+        if: ${{ steps.compute.outputs.bump != 'none' }}
         shell: bash
         run: |
           set -euo pipefail
 
           TAG="${{ steps.compute.outputs.new_tag }}"
 
+          # Avoid re-tagging if tag exists
           if git rev-parse "${TAG}" >/dev/null 2>&1; then
             echo "Tag ${TAG} already exists. Skipping."
             exit 0
