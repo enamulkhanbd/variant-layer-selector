@@ -42,20 +42,20 @@ jobs:
           BUMP="none"
           echo "${SUBJECTS}" | grep -E '^Breaking:' >/dev/null 2>&1 && BUMP="major" || true
           if [ "${BUMP}" = "none" ]; then
-            echo "${SUBJECTS}" | grep -E '^Releases:' >/dev/null 2>&1 && BUMP="minor" || true
+          echo "${SUBJECTS}" | grep -E '^Releases?:' >/dev/null 2>&1 && BUMP="minor" || true
           fi
           if [ "${BUMP}" = "none" ]; then
             echo "${SUBJECTS}" | grep -E '^Fix:' >/dev/null 2>&1 && BUMP="patch" || true
           fi
           echo "bump=${BUMP}" >> "$GITHUB_OUTPUT"
 
-          # Collect "Releases:" lines for RELEASES.md
-          NOTES="$(echo "${SUBJECTS}" | grep -E '^Releases:' || true)"
+          # Collect "Release:" / "Releases:" lines for RELEASES.md
+          NOTES="$(echo "${SUBJECTS}" | grep -E '^Releases?:' || true)"
           if [ -z "${NOTES}" ]; then
             echo "found_releases=false" >> "$GITHUB_OUTPUT"
           else
             echo "found_releases=true" >> "$GITHUB_OUTPUT"
-            echo "${NOTES}" | sed -E 's/^Releases:\s*/- /' > .releases_bullets.txt
+            echo "${NOTES}" | sed -E 's/^Releases?:\s*/- /' > .releases_bullets.txt
           fi
 
           # Parse last tag vX.Y.Z and bump
@@ -76,7 +76,7 @@ jobs:
       - name: Stop if no version bump detected
         if: ${{ steps.compute.outputs.bump == 'none' }}
         run: |
-          echo "No Breaking:/Releases:/Fix: commits since last tag. Skipping."
+          echo "No Breaking:/Release(s):/Fix: commits since last tag. Skipping."
 
       - name: Update RELEASES.md
         if: ${{ steps.compute.outputs.bump != 'none' && steps.compute.outputs.found_releases == 'true' }}
