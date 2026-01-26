@@ -1,5 +1,8 @@
 # Releases
 
+## v2.5.0 — 2026-01-26
+- update release file for commit print
+
 ## v2.4.0 — 2026-01-26
 - enable fully automated releases
 
