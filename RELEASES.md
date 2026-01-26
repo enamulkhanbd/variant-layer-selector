@@ -1,5 +1,8 @@
 # Releases
 
+## v2.1.0 — 2026-01-26
+- improve release notes and automation
+
 ## v2.0.0 - 2026-01-26
 Breaking changes:
 - Configuration schema updated; regenerate configs to match the new structure.
