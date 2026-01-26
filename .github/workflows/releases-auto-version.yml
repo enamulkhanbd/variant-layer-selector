@@ -150,3 +150,82 @@ jobs:
 
           git tag -a "${TAG}" -m "Release ${TAG}"
           git push origin "${TAG}"
+
+      - name: Package release zip from manifest.json
+        if: ${{ steps.compute.outputs.bump != 'none' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${{ steps.compute.outputs.new_tag }}"
+          MAIN=$(node -p "require('./manifest.json').main || ''")
+          UI=$(node -p "require('./manifest.json').ui || ''")
+
+          if [ -z "$MAIN" ] || [ -z "$UI" ]; then
+            echo "manifest.json must include both 'main' and 'ui' -> found main='$MAIN', ui='$UI'"
+            exit 1
+          fi
+
+          for f in manifest.json "$MAIN" "$UI"; do
+            if [ ! -f "$f" ]; then
+              echo "Missing required file: $f"
+              exit 1
+            fi
+          done
+
+          rm -rf release
+          mkdir -p release
+
+          cp manifest.json release/
+          mkdir -p "release/$(dirname "$MAIN")" "release/$(dirname "$UI")"
+          cp "$MAIN" "release/$MAIN"
+          cp "$UI" "release/$UI"
+
+          # Only ship manifest-referenced files + optional assets folder.
+          [ -d assets ] && cp -R assets release/ || true
+
+          ZIP="plugin-${TAG}.zip"
+          (cd release && zip -r "../$ZIP" .)
+
+          echo "Created $ZIP"
+
+      - name: Build release notes (from RELEASES.md if available)
+        if: ${{ steps.compute.outputs.bump != 'none' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.compute.outputs.new_tag }}"
+
+          # Default body if RELEASES.md missing or section not found
+          {
+            echo "${TAG}"
+            echo ""
+            echo "- Release created by CI"
+          } > release_notes.txt
+
+          [ -f RELEASES.md ] || exit 0
+
+          # Extract lines after "## vX.Y.Z" until next "## "
+          awk -v header="## ${TAG}" '
+            $0 == header {found=1; next}
+            found && /^## / {exit}
+            found {print}
+          ' RELEASES.md > extracted.txt || true
+
+          if [ -s extracted.txt ]; then
+            {
+              echo "${TAG}"
+              echo ""
+              cat extracted.txt
+            } > release_notes.txt
+          fi
+
+      - name: Create GitHub Release and upload zip
+        if: ${{ steps.compute.outputs.bump != 'none' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.compute.outputs.new_tag }}
+          name: ${{ steps.compute.outputs.new_tag }}
+          body_path: release_notes.txt
+          files: |
+            plugin-*.zip
