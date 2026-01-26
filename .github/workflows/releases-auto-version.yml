@@ -1,0 +1,141 @@
+name: Auto-version + update RELEASES.md + tag
+
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - "RELEASES.md"
+
+permissions:
+  contents: write
+
+jobs:
+  version-and-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version + collect release notes
+        id: compute
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          LAST_TAG="$(git tag --list 'v*' --sort=-v:refname | head -n 1 || true)"
+          [ -z "${LAST_TAG}" ] && LAST_TAG="v0.0.0"
+          echo "last_tag=${LAST_TAG}" >> "$GITHUB_OUTPUT"
+
+          if [ "${LAST_TAG}" = "v0.0.0" ]; then
+            SUBJECTS="$(git log --format=%s)"
+          else
+            SUBJECTS="$(git log --format=%s "${LAST_TAG}..HEAD")"
+          fi
+
+          BUMP="none"
+          echo "${SUBJECTS}" | grep -E '^Breaking:' >/dev/null 2>&1 && BUMP="major" || true
+          if [ "${BUMP}" = "none" ]; then
+            echo "${SUBJECTS}" | grep -E '^Releases:' >/dev/null 2>&1 && BUMP="minor" || true
+          fi
+          if [ "${BUMP}" = "none" ]; then
+            echo "${SUBJECTS}" | grep -E '^Fix:' >/dev/null 2>&1 && BUMP="patch" || true
+          fi
+          echo "bump=${BUMP}" >> "$GITHUB_OUTPUT"
+
+          NOTES="$(echo "${SUBJECTS}" | grep -E '^Releases:' || true)"
+          if [ -z "${NOTES}" ]; then
+            echo "found_releases=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "found_releases=true" >> "$GITHUB_OUTPUT"
+            echo "${NOTES}" | sed -E 's/^Releases:\s*/- /' > .releases_bullets.txt
+          fi
+
+          V="${LAST_TAG#v}"
+          IFS='.' read -r MA MI PA <<< "$V"
+          MA="${MA:-0}"; MI="${MI:-0}"; PA="${PA:-0}"
+
+          case "${BUMP}" in
+            major) MA=$((MA+1)); MI=0; PA=0 ;;
+            minor) MI=$((MI+1)); PA=0 ;;
+            patch) PA=$((PA+1)) ;;
+            none)  ;;
+          esac
+
+          NEW_TAG="v${MA}.${MI}.${PA}"
+          echo "new_tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Stop if no version bump detected
+        if: steps.compute.outputs.bump == 'none'
+        run: echo "No Breaking:/Releases:/Fix: commits since last tag. Skipping."
+
+      - name: Update RELEASES.md
+        if: steps.compute.outputs.bump != 'none' && steps.compute.outputs.found_releases == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DATE="$(date -u +'%Y-%m-%d')"
+          TAG="${{ steps.compute.outputs.new_tag }}"
+          HEADER="## ${TAG} — ${DATE}"
+
+          if [ ! -f RELEASES.md ]; then
+            echo "# Releases" > RELEASES.md
+            echo "" >> RELEASES.md
+          fi
+
+          FIRST_LINE="$(head -n 1 RELEASES.md || true)"
+          TMP="$(mktemp)"
+
+          if [[ "${FIRST_LINE}" == "# Releases" ]]; then
+            {
+              head -n 2 RELEASES.md
+              echo "${HEADER}"
+              cat .releases_bullets.txt
+              echo ""
+              tail -n +3 RELEASES.md
+            } > "${TMP}"
+          else
+            {
+              echo "${HEADER}"
+              cat .releases_bullets.txt
+              echo ""
+              cat RELEASES.md
+            } > "${TMP}"
+          fi
+
+          mv "${TMP}" RELEASES.md
+
+      - name: Commit RELEASES.md (if changed)
+        if: steps.compute.outputs.bump != 'none' && steps.compute.outputs.found_releases == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add RELEASES.md
+          git diff --cached --quiet && exit 0
+
+          git commit -m "chore: update RELEASES.md [skip ci]"
+          git push
+
+      - name: Create and push Git tag
+        if: steps.compute.outputs.bump != 'none'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${{ steps.compute.outputs.new_tag }}"
+
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists. Skipping."
+            exit 0
+          fi
+
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
