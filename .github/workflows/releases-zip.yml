@@ -46,7 +46,7 @@ jobs:
           cp "$MAIN" "release/$MAIN"
           cp "$UI" "release/$UI"
 
-          [ -f README.md ] && cp README.md release/ || true
+          # Only ship manifest-referenced files + optional assets folder.
           [ -d assets ] && cp -R assets release/ || true
 
           TAG="${GITHUB_REF_NAME}"
