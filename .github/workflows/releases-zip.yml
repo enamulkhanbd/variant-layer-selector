@@ -1,9 +1,12 @@
 name: Build release zip + GitHub Release (from manifest.json)
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.2.3)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,6 +14,9 @@ permissions:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      REPO_NAME: ${{ github.event.repository.name }}
 
     steps:
       - name: Checkout (full history)
@@ -18,13 +24,37 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Ensure release tag exists on this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${RELEASE_TAG}"
+          git fetch --tags --force
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            TAG_SHA="$(git rev-parse "$TAG^{commit}")"
+            if [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+              echo "Tag ${TAG} points to ${TAG_SHA}, but workflow is running on ${GITHUB_SHA}."
+              echo "Run the workflow on the tag ref or use a new tag."
+              exit 1
+            fi
+            echo "Tag ${TAG} already exists on this commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
       - name: Package release zip from manifest.json
         shell: bash
         run: |
           set -euo pipefail
 
-          MAIN=$(node -p "require('./manifest.json').main || ''")
-          UI=$(node -p "require('./manifest.json').ui || ''")
+          MAIN="$(python -c "import json; print(json.load(open('manifest.json', encoding='utf-8')).get('main',''))")"
+          UI="$(python -c "import json; print(json.load(open('manifest.json', encoding='utf-8')).get('ui',''))")"
 
           if [ -z "$MAIN" ] || [ -z "$UI" ]; then
             echo "manifest.json must include both 'main' and 'ui' -> found main='$MAIN', ui='$UI'"
@@ -49,8 +79,8 @@ jobs:
           # Only ship manifest-referenced files + optional assets folder.
           [ -d assets ] && cp -R assets release/ || true
 
-          TAG="${GITHUB_REF_NAME}"
-          ZIP="plugin-${TAG}.zip"
+          TAG="${RELEASE_TAG}"
+          ZIP="${REPO_NAME}-${TAG}.zip"
           (cd release && zip -r "../$ZIP" .)
 
           echo "Created $ZIP"
@@ -59,7 +89,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${RELEASE_TAG}"
 
           # Default body if RELEASES.md missing or section not found
           {
@@ -88,6 +118,8 @@ jobs:
       - name: Create GitHub Release and upload zip
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_TAG }}
           body_path: release_notes.txt
           files: |
-            plugin-*.zip
+            ${{ env.REPO_NAME }}-*.zip
